@@ -47,7 +47,7 @@ pi config                         # 启用/禁用具体资源
 |----|------|
 | [pi-subagents](https://www.npmjs.com/package/pi-subagents) | Claude Code 风格的自主 sub-agents（含 council mode、parallel review 等 prompts） |
 | [pi-web-access](https://www.npmjs.com/package/pi-web-access) | Web 搜索 / URL 抓取 / GitHub / YouTube 等扩展 |
-| [@juicesharp/rpiv-btw](https://www.npmjs.com/package/@juicesharp/rpiv-btw) | RPIV（Read-Plan-Implement-Verify）工作流扩展 |
+| [@juicesharp/rpiv-btw](https://www.npmjs.com/package/@juicesharp/rpiv-btw) | `/btw` 侧问命令：向主模型问一次性问题，不污染主会话上下文 |
 | [pi-codex-image-gen](https://www.npmjs.com/package/pi-codex-image-gen) | 用 OpenAI Codex 后端生成/编辑图片（含 imagegen skill） |
 | [pi-codex-tool-folding](https://github.com/suenyiyang/pi-codex-tool-folding) | 把一轮 run 里的所有 tool call 折叠成一行安静的 "Worked for..."（git 源） |
 | [pi-openai-server-compaction](https://github.com/algal/pi-openai-server-compaction) | OpenAI server-side compaction，长会话上下文压缩（git 源） |

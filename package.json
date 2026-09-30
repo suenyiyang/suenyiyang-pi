@@ -1,0 +1,77 @@
+{
+  "name": "suenyiyang-pi-preset",
+  "version": "0.1.0",
+  "description": "suenyiyang's personal Pi coding agent preset — extensions, skills, prompts, and themes.",
+  "license": "MIT",
+  "author": "suenyiyang",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-agent",
+    "preset",
+    "skills",
+    "extensions",
+    "prompts",
+    "themes"
+  ],
+  "files": [
+    "extensions",
+    "skills",
+    "prompts",
+    "themes",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/suenyiyang/suenyiyang-pi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/suenyiyang/suenyiyang-pi/issues"
+  },
+  "homepage": "https://github.com/suenyiyang/suenyiyang-pi#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "dependencies": {
+    "@juicesharp/rpiv-btw": "^2.11.0",
+    "pi-codex-image-gen": "^0.1.13",
+    "pi-codex-tool-folding": "github:suenyiyang/pi-codex-tool-folding",
+    "pi-openai-server-compaction": "github:algal/pi-openai-server-compaction",
+    "pi-subagents": "^0.73.1",
+    "pi-web-access": "^0.33.0"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions",
+      "node_modules/pi-subagents/index.js",
+      "node_modules/pi-web-access/dist",
+      "node_modules/@juicesharp/rpiv-btw/index.ts",
+      "node_modules/pi-codex-image-gen/index.ts",
+      "node_modules/pi-codex-tool-folding/extensions",
+      "node_modules/pi-openai-server-compaction/src/index.ts"
+    ],
+    "skills": [
+      "./skills",
+      "node_modules/pi-subagents/skills",
+      "node_modules/pi-codex-image-gen/skills"
+    ],
+    "prompts": [
+      "./prompts",
+      "node_modules/pi-subagents/prompts"
+    ],
+    "themes": [
+      "./themes"
+    ]
+  },
+  "bundleDependencies": [
+    "@juicesharp/rpiv-btw",
+    "pi-codex-image-gen",
+    "pi-codex-tool-folding",
+    "pi-openai-server-compaction",
+    "pi-subagents",
+    "pi-web-access"
+  ]
+}

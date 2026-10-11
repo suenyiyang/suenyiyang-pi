@@ -50,7 +50,6 @@ pi config                         # 启用/禁用具体资源
 | [@juicesharp/rpiv-btw](https://www.npmjs.com/package/@juicesharp/rpiv-btw) | `/btw` 侧问命令：向主模型问一次性问题，不污染主会话上下文 |
 | [pi-codex-image-gen](https://www.npmjs.com/package/pi-codex-image-gen) | 用 OpenAI Codex 后端生成/编辑图片（含 imagegen skill） |
 | [pi-codex-tool-folding](https://github.com/suenyiyang/pi-codex-tool-folding) | 把一轮 run 里的所有 tool call 折叠成一行安静的 "Worked for..."（git 源） |
-| [pi-openai-server-compaction](https://github.com/algal/pi-openai-server-compaction) | OpenAI server-side compaction，长会话上下文压缩（git 源） |
 
 它们声明在 `dependencies` + `bundleDependencies` 中，资源通过 `pi.extensions` / `pi.skills` 的 `node_modules/...` 路径引用。
 

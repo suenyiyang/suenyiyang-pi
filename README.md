@@ -51,6 +51,7 @@ pi config                         # 启用/禁用具体资源
 | [pi-codex-image-gen](https://www.npmjs.com/package/pi-codex-image-gen) | 用 OpenAI Codex 后端生成/编辑图片（含 imagegen skill） |
 | [pi-codex-tool-folding](https://github.com/suenyiyang/pi-codex-tool-folding) | 把一轮 run 里的所有 tool call 折叠成一行安静的 "Worked for..."（git 源） |
 | [@pi-agents/loop](https://www.npmjs.com/package/@pi-agents/loop) | Claude Code 风格的 `/loop` 与会话内 cron（`cron_create` / `cron_list` / `cron_delete`，加 `/loop-list`、`/loop-kill`） |
+| [pi-spacexai](https://www.npmjs.com/package/pi-spacexai) | Grok Imagine 图片/视频与语音（`image_gen` / `image_edit` / `text_to_video` / `image_to_video` 等）。需先 `/login xai`（SuperGrok / X Premium+ 订阅 OAuth），再重启 pi，这些工具才会激活 |
 
 它们声明在 `dependencies` + `bundleDependencies` 中，资源通过 `pi.extensions` / `pi.skills` 的 `node_modules/...` 路径引用。
 

@@ -70,8 +70,9 @@ built-in `node:test`. Release automation is GitHub Actions + npm Trusted Publish
     `pull-requests: write`), Node 24, and npm >= 11.5.1. Do **not** set
     `actions/setup-node` `registry-url`: it exports a placeholder
     `NODE_AUTH_TOKEN` that skips OIDC and makes `npm publish` return 404.
-    The release commit and tag are pushed only after publish succeeds, and
-    only if that version is visible on the registry.
+    The release commit and tag are pushed immediately after `npm publish`
+    succeeds. The push step does not poll `npm view`. A failed publish
+    skips that step, so `main` and the tag stay unchanged.
 *   Git commits in this repo use the GitHub identity (`suenyiyang
     <suenyiyang+github@gmail.com>`), configured repo-locally, not the global git identity.
 

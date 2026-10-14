@@ -61,6 +61,7 @@ pi config                         # 启用/禁用具体资源
 |------|------|
 | `extensions/tps-status.ts` | 在 footer 实时显示 tokens/second 流式生成速率，`/tps` 切换开关 |
 | `extensions/auto-session-title.ts` | 自动用便宜模型给会话起名；可用 `~/.pi/agent/auto-session-title.json` 覆盖 `provider` / `model` / `reasoningEffort` / `timeoutMs`，无配置时自动挑选当前可用的最便宜模型 |
+| `extensions/spacexai-media.ts` | 加载 `pi-spacexai`，但跳过它的 `web_search`，把这个工具名留给 `pi-web-access` |
 
 ## 包结构
 

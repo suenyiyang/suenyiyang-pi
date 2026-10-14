@@ -52,8 +52,7 @@
       "node_modules/@juicesharp/rpiv-btw/index.ts",
       "node_modules/pi-codex-image-gen/index.ts",
       "node_modules/pi-codex-tool-folding/extensions",
-      "node_modules/@pi-agents/loop/dist/index.js",
-      "node_modules/pi-spacexai/index.ts"
+      "node_modules/@pi-agents/loop/dist/index.js"
     ],
     "skills": [
       "./skills",

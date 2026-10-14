@@ -140,13 +140,20 @@ pi install git:github.com/suenyiyang/suenyiyang-pi   # 恢复全部插件
 
 ## 自动发布
 
-发布使用 [npm Trusted Publisher](https://docs.npmjs.com/trusted-publishers)（OIDC），**无需**在仓库中配置 `NPM_TOKEN`。Workflow 文件：`.github/workflows/daily-release.yml`。
+发布使用 [npm Trusted Publisher](https://docs.npmjs.com/trusted-publishers)（OIDC），**无需**在仓库中配置 `NPM_TOKEN`。Workflow 文件：`.github/workflows/daily-release.yml`。发布的包是 `suenyiyang-pi-preset`。
+
+`publish` job 用 GitHub OIDC 向 npm 证明身份：
+
+- `permissions` 包含 `id-token: write`，并保留 `contents: write`、`pull-requests: write`
+- Node.js 24，npm >= 11.5.1（workflow 执行 `npm install -g npm@latest` 并检查版本）
+- `actions/setup-node` **不**设置 `registry-url`。该选项会写入 `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`；占位 token 会让 npm 跳过 OIDC，`npm publish` 返回 `404 Not Found` / `you do not have permission`
+- 升版 commit 与 `vX.Y.Z` tag 只在 `npm publish` 成功、且 registry 上能查到该版本之后才推送。发布失败不会推动 `main`，也不会留下指向未发布版本的 tag
 
 ### 触发方式
 
 | 触发 | 行为 |
 |------|------|
-| **push 到 `main`** | 自动发布。若当前 `package.json` 版本已在 npm 上存在，则自动 patch 升版、创建 `chore(release): x.y.z` commit、annotated `vX.Y.Z` tag 和 GitHub Release 并推回远端 |
+| **push 到 `main`** | 自动发布。若当前 `package.json` 版本已在 npm 上存在，则自动 patch 升版、创建 `chore(release): x.y.z` commit 与 annotated `vX.Y.Z` tag。`npm publish` 成功后才把 commit 和 tag 推回远端，并创建 GitHub Release |
 | **每日北京时间 0:00**（`cron: 0 16 * * *` UTC） | 检查依赖。registry 包用 `npm-check-updates` 升级范围；`github:#branch` 依赖把 lock 刷到该分支当前提交。有变化才开 `chore/dependency-updates` PR，不直接发版 |
 | **手动 Run workflow** | 默认只跑依赖检查并开 PR。勾选 `force_publish` 才按当前 `main` 发一版 |
 

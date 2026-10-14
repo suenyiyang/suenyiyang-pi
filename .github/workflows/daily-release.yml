@@ -36,6 +36,12 @@ jobs:
        !startsWith(github.event.head_commit.message, 'chore(release):')) ||
       (github.event_name == 'workflow_dispatch' &&
        (inputs.force_publish == true || inputs.force_publish == 'true'))
+    # Job permissions replace the workflow grant. id-token: write is what
+    # lets this job mint the OIDC JWT npm Trusted Publisher expects.
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -44,14 +50,29 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Do not set registry-url. setup-node would write
+      # //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN} and export a
+      # placeholder NODE_AUTH_TOKEN. npm then treats that as classic auth,
+      # skips the OIDC exchange, and the registry answers 404.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-          registry-url: "https://registry.npmjs.org"
 
       - name: Ensure modern npm (Trusted Publisher requires >= 11.5.1)
-        run: npm install -g npm@latest
+        run: |
+          set -euo pipefail
+          npm install -g npm@latest
+          NPM_VERSION="$(npm --version)"
+          echo "npm ${NPM_VERSION}"
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number);
+            const ok = major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1)));
+            if (!ok) {
+              console.error(`Trusted publishing requires npm >= 11.5.1, found ${process.argv[1]}`);
+              process.exit(1);
+            }
+          ' "$NPM_VERSION"
 
       - name: Fetch GitHub dependencies over HTTPS
         run: |
@@ -66,6 +87,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      # Commit and tag stay on the runner until publish succeeds. The push
+      # step below is skipped when this job fails, so a rejected publish
+      # cannot leave main or the tag set pointing at an unpublished version.
       - name: Ensure unpublished version, commit, and tag
         id: version
         run: |
@@ -137,15 +161,53 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm (OIDC Trusted Publisher)
-        run: npm publish --access public
+        run: |
+          set -euo pipefail
+          # A set NODE_AUTH_TOKEN — even empty or the setup-node placeholder —
+          # wins over OIDC. Drop it, and drop any user npmrc auth line that
+          # would expand to that token.
+          unset NODE_AUTH_TOKEN || true
+          strip_auth() {
+            local file="$1"
+            if [ -n "$file" ] && [ -f "$file" ]; then
+              grep -v '_authToken' "$file" > "${file}.noidc" || true
+              mv "${file}.noidc" "$file"
+            fi
+          }
+          strip_auth "${NPM_CONFIG_USERCONFIG:-}"
+          strip_auth "${HOME}/.npmrc"
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "OIDC token request env is missing. This job needs permissions: id-token: write." >&2
+            exit 1
+          fi
+          npm publish --access public
 
       - name: Push commit and/or tags
         env:
           CREATED_COMMIT: ${{ steps.version.outputs.created_commit }}
           CREATED_TAG: ${{ steps.version.outputs.created_tag }}
           TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          # This step runs only after npm publish succeeds. Still refuse to
+          # push unless the registry actually has the version, so a failed or
+          # incomplete publish cannot move main or publish a release tag.
+          published=false
+          for attempt in 1 2 3 4 5 6; do
+            if npm view "${PACKAGE_NAME}@${VERSION}" version >/dev/null 2>&1; then
+              published=true
+              break
+            fi
+            echo "Waiting for ${PACKAGE_NAME}@${VERSION} to appear on npm (${attempt}/6)."
+            sleep 5
+          done
+          if [ "$published" != "true" ]; then
+            echo "Refusing to push ${TAG}: ${PACKAGE_NAME}@${VERSION} is not on npm." >&2
+            exit 1
+          fi
+
           BRANCH="${GITHUB_REF_NAME:-main}"
           if [ "$CREATED_COMMIT" = "true" ] && [ "$CREATED_TAG" = "true" ]; then
             echo "Pushing release commit and ${TAG} atomically."

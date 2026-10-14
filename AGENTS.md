@@ -66,6 +66,12 @@ built-in `node:test`. Release automation is GitHub Actions + npm Trusted Publish
 *   Release-note text is Markdown-escaped on purpose — commit subjects are
     attacker-influenced input into `gh release create`.
 *   Auth is OIDC — **never** add `NPM_TOKEN` or other secrets to the repo.
+    The `publish` job needs `id-token: write` (plus `contents: write` and
+    `pull-requests: write`), Node 24, and npm >= 11.5.1. Do **not** set
+    `actions/setup-node` `registry-url`: it exports a placeholder
+    `NODE_AUTH_TOKEN` that skips OIDC and makes `npm publish` return 404.
+    The release commit and tag are pushed only after publish succeeds, and
+    only if that version is visible on the registry.
 *   Git commits in this repo use the GitHub identity (`suenyiyang
     <suenyiyang+github@gmail.com>`), configured repo-locally, not the global git identity.
 

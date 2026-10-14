@@ -20,7 +20,8 @@ built-in `node:test`. Release automation is GitHub Actions + npm Trusted Publish
     Markdown release-notes generator (CLI + exported pure functions).
 *   `.github/scripts/generate-release-notes.test.mjs` — its tests, kept beside the script.
 *   `test/generate-release-notes.test.mjs` — wrapper so `node --test` finds them from the repo root.
-*   `.github/workflows/daily-release.yml` — the whole release pipeline.
+*   `.github/workflows/daily-release.yml` — publish on push to `main`; the scheduled job only opens a dependency-update PR.
+*   `.github/scripts/git-dependency-updates.mjs` — lists floating `github:#ref` dependencies whose lock commit is behind the remote ref.
 *   `README.md` — user-facing, written in Chinese; update it when the install/release flow changes.
 
 ## COMMANDS
@@ -59,6 +60,9 @@ built-in `node:test`. Release automation is GitHub Actions + npm Trusted Publish
 *   `.npmrc` sets `force=true` because bundled Pi packages sometimes pin **stale** peer
     ranges on Pi core packages the runtime provides. `force` tolerates the conflict and
     still installs the peer tree. Do **not** switch to `legacy-peer-deps`.
+    It also sets `allow-git=all` because `pi-codex-tool-folding` is a GitHub dependency.
+    Commit `package-lock.json`. Do not delete it to float that dependency; the scheduled
+    job refreshes its locked commit and opens `chore/dependency-updates`.
 *   Release-note text is Markdown-escaped on purpose — commit subjects are
     attacker-influenced input into `gh release create`.
 *   Auth is OIDC — **never** add `NPM_TOKEN` or other secrets to the repo.

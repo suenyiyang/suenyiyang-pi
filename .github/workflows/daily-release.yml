@@ -9,26 +9,33 @@ on:
   workflow_dispatch:
     inputs:
       force_publish:
-        description: "Bump patch and publish when direct dependencies are unchanged"
+        description: "Publish the current main commit"
         required: false
         default: false
+        type: boolean
+      update_dependencies:
+        description: "Open a PR when bundled dependencies changed"
+        required: false
+        default: true
         type: boolean
 
 permissions:
   contents: write
   id-token: write
+  pull-requests: write
 
 concurrency:
   group: daily-release
   cancel-in-progress: false
 
 jobs:
-  update-and-publish:
-    # Avoid loop: bot release commits re-triggering push workflow
+  publish:
     if: >
-      github.event_name != 'push' ||
-      (github.actor != 'github-actions[bot]' &&
-       !startsWith(github.event.head_commit.message, 'chore(release):'))
+      (github.event_name == 'push' &&
+       github.actor != 'github-actions[bot]' &&
+       !startsWith(github.event.head_commit.message, 'chore(release):')) ||
+      (github.event_name == 'workflow_dispatch' &&
+       (inputs.force_publish == true || inputs.force_publish == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -46,104 +53,20 @@ jobs:
       - name: Ensure modern npm (Trusted Publisher requires >= 11.5.1)
         run: npm install -g npm@latest
 
+      - name: Fetch GitHub dependencies over HTTPS
+        run: |
+          git config --global --add url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global --add url."https://github.com/".insteadOf "git@github.com:"
+
       - name: Install current dependencies
-        run: npm ci
-
-      - name: Detect direct dependency updates
-        id: dependency-updates
-        # Only scheduled and manual runs update dependencies — never main pushes.
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        run: |
-          set -euo pipefail
-          UPDATES_FILE="$(mktemp)"
-          trap 'rm -f "$UPDATES_FILE"' EXIT
-
-          npx npm-check-updates --jsonUpgraded > "$UPDATES_FILE"
-
-          node - "$UPDATES_FILE" <<'NODE'
-          const fs = require("node:fs");
-
-          const updatesFile = process.argv[2];
-          const raw = fs.readFileSync(updatesFile, "utf8").trim();
-          let upgrades;
-
-          try {
-            upgrades = JSON.parse(raw);
-          } catch (error) {
-            throw new Error(
-              `npm-check-updates did not return valid JSON: ${error.message}`,
-            );
-          }
-
-          if (
-            upgrades === null ||
-            Array.isArray(upgrades) ||
-            typeof upgrades !== "object"
-          ) {
-            throw new Error("npm-check-updates output must be a JSON object.");
-          }
-
-          const updateCount = Object.keys(upgrades).length;
-          const hasDirectDependencyUpdates = updateCount > 0;
-
-          fs.appendFileSync(
-            process.env.GITHUB_OUTPUT,
-            `has_direct_dependency_updates=${hasDirectDependencyUpdates}\n`,
-          );
-          console.log(`Direct dependency updates detected: ${updateCount}.`);
-          NODE
-
-      - name: Apply direct dependency updates
-        if: steps.dependency-updates.outputs.has_direct_dependency_updates == 'true'
-        run: |
-          set -euo pipefail
-          npx npm-check-updates -u
-          npm install
-
-      - name: Verify dependency update changed package files
-        if: steps.dependency-updates.outputs.has_direct_dependency_updates == 'true'
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- package.json package-lock.json; then
-            echo "npm-check-updates detected direct dependency updates, but package.json and package-lock.json did not change after applying them." >&2
-            exit 1
-          fi
-
-      - name: Decide whether to release
-        id: decide
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          FORCE_PUBLISH: ${{ inputs.force_publish }}
-          HAS_DIRECT_DEPENDENCY_UPDATES: ${{ steps.dependency-updates.outputs.has_direct_dependency_updates || 'false' }}
-        run: |
-          set -euo pipefail
-          SHOULD_RELEASE=false
-
-          if [ "$EVENT_NAME" = "push" ]; then
-            SHOULD_RELEASE=true
-            echo "Push to main: always attempt publish."
-          elif [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "${FORCE_PUBLISH:-false}" = "true" ]; then
-            SHOULD_RELEASE=true
-            echo "Force publish requested."
-          elif [ "$EVENT_NAME" = "schedule" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            if [ "${HAS_DIRECT_DEPENDENCY_UPDATES:-false}" = "true" ]; then
-              SHOULD_RELEASE=true
-              echo "Direct dependency updates detected; release will proceed."
-            else
-              echo "No direct dependency updates; skip release."
-            fi
-          fi
-
-          echo "should_release=${SHOULD_RELEASE}" >> "$GITHUB_OUTPUT"
+        run: npm ci --allow-git=all
 
       - name: Configure git
-        if: steps.decide.outputs.should_release == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Ensure unpublished version, commit, and tag
-        if: steps.decide.outputs.should_release == 'true'
         id: version
         run: |
           set -euo pipefail
@@ -161,7 +84,6 @@ jobs:
 
           VERSION="$(node -p "require('./package.json').version")"
 
-          # Commit dependency bumps and/or version bump if working tree dirty
           if ! git diff --quiet -- package.json package-lock.json; then
             git add package.json package-lock.json
             git commit -m "chore(release): ${VERSION}"
@@ -174,9 +96,6 @@ jobs:
           RELEASE_COMMIT="$(git rev-parse HEAD)"
           TAG="v${VERSION}"
 
-          # Resolve the comparison point before creating the current tag. A
-          # reachable version tag is preferred; older repositories without
-          # tags fall back to the previous release commit.
           BASE_REF=""
           if BASE_REF="$(git describe --tags --match 'v[0-9]*' --abbrev=0 "${RELEASE_COMMIT}^" 2>/dev/null)"; then
             echo "Using previous version tag ${BASE_REF} as the release base."
@@ -218,11 +137,9 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm (OIDC Trusted Publisher)
-        if: steps.decide.outputs.should_release == 'true'
         run: npm publish --access public
 
       - name: Push commit and/or tags
-        if: steps.decide.outputs.should_release == 'true'
         env:
           CREATED_COMMIT: ${{ steps.version.outputs.created_commit }}
           CREATED_TAG: ${{ steps.version.outputs.created_tag }}
@@ -244,7 +161,6 @@ jobs:
           fi
 
       - name: Generate release notes
-        if: steps.decide.outputs.should_release == 'true'
         id: release-notes
         env:
           BASE_REF: ${{ steps.version.outputs.base_ref }}
@@ -264,7 +180,6 @@ jobs:
           echo "Generated release notes at ${NOTES_FILE}."
 
       - name: Create GitHub Release
-        if: steps.decide.outputs.should_release == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -282,3 +197,99 @@ jobs:
               --title "$TAG" \
               --notes-file "$NOTES_FILE"
           fi
+
+  update-dependencies:
+    if: >
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' &&
+       (inputs.update_dependencies == true || inputs.update_dependencies == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Ensure modern npm (Trusted Publisher requires >= 11.5.1)
+        run: npm install -g npm@latest
+
+      - name: Fetch GitHub dependencies over HTTPS
+        run: |
+          git config --global --add url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global --add url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Install current dependencies
+        run: npm ci --allow-git=all
+
+      - name: Apply registry and git dependency updates
+        run: |
+          set -euo pipefail
+          npx npm-check-updates -u
+          npm install --allow-git=all
+
+          SPECS_FILE="$(mktemp)"
+          node .github/scripts/git-dependency-updates.mjs > "$SPECS_FILE"
+          if [ -s "$SPECS_FILE" ]; then
+            echo "Refreshing floating GitHub dependencies:"
+            cat "$SPECS_FILE"
+            xargs npm install --allow-git=all < "$SPECS_FILE"
+          else
+            echo "Floating GitHub dependencies already match their remote refs."
+          fi
+
+      - name: Open or update dependency pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          BRANCH="chore/dependency-updates"
+
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "No dependency changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(deps): refresh bundled Pi packages"
+
+          git fetch origin "$BRANCH" || true
+          if git rev-parse --verify --quiet "origin/${BRANCH}" >/dev/null; then
+            git push --force-with-lease="refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" \
+              origin "HEAD:${BRANCH}"
+          else
+            git push origin "HEAD:${BRANCH}"
+          fi
+
+          EXISTING="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$EXISTING" ]; then
+            echo "Updated pull request #${EXISTING}."
+            exit 0
+          fi
+
+          BODY_FILE="$(mktemp)"
+          cat > "$BODY_FILE" <<'EOF'
+          定时检查发现 bundled 依赖有变化。请审阅后合并。
+
+          合并进 `main` 后，现有的 push 发版流程会发布新版本。这个任务不会直接推 `main`，也不会自己发版。
+
+          - registry 依赖：`npm-check-updates` 升级 `package.json` 范围，并刷新 lock
+          - `github:owner/repo#branch`：lock 里的 commit 刷到该分支当前提交；`package.json` 仍指向分支
+          EOF
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(deps): refresh bundled Pi packages" \
+            --body-file "$BODY_FILE"

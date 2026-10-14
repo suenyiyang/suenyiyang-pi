@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "floating": "github:owner/floating#main"
+  }
+}

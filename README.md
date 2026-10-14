@@ -124,6 +124,8 @@ pi install .
 - 部分第三方包对 Pi 核心包的 peer range 已过期。仓库根目录 `.npmrc` 因此设置
   `force=true`，让 `npm ci` 容忍这类冲突但不丢弃 peer 树。
   不要改用 `legacy-peer-deps`（会从 lock 中移除整个 `@earendil-works/*` peer 子树）。
+- `package-lock.json` 要提交。`npm ci` 和发版都依赖它。git 依赖的「最新」不靠删 lock，
+  而靠每日 PR 把 lock 里的 commit 刷到分支当前提交。`.npmrc` 的 `allow-git=all` 是为了让 CI 能拉取这个 git 依赖。
 
 ## 换机同步
 
@@ -144,8 +146,8 @@ pi install git:github.com/suenyiyang/suenyiyang-pi   # 恢复全部插件
 | 触发 | 行为 |
 |------|------|
 | **push 到 `main`** | 自动发布。若当前 `package.json` 版本已在 npm 上存在，则自动 patch 升版、创建 `chore(release): x.y.z` commit、annotated `vX.Y.Z` tag 和 GitHub Release 并推回远端 |
-| **每日北京时间 0:00**（`cron: 0 16 * * *` UTC） | 用 `npm-check-updates` 更新依赖；有变更才升版发布；无变更则跳过 |
-| **手动 Run workflow** | 同日更逻辑；可勾选 `force_publish` 强制发一版 |
+| **每日北京时间 0:00**（`cron: 0 16 * * *` UTC） | 检查依赖。registry 包用 `npm-check-updates` 升级范围；`github:#branch` 依赖把 lock 刷到该分支当前提交。有变化才开 `chore/dependency-updates` PR，不直接发版 |
+| **手动 Run workflow** | 默认只跑依赖检查并开 PR。勾选 `force_publish` 才按当前 `main` 发一版 |
 
 Bot 自己的 `chore(release):` 提交不会再次触发发布，避免循环。
 

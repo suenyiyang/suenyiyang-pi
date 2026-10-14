@@ -1,0 +1,7 @@
+{
+  "packages": {
+    "node_modules/floating": {
+      "resolved": "git+ssh://git@github.com/owner/floating.git#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  }
+}

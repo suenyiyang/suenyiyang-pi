@@ -147,7 +147,7 @@ pi install git:github.com/suenyiyang/suenyiyang-pi   # 恢复全部插件
 - `permissions` 包含 `id-token: write`，并保留 `contents: write`、`pull-requests: write`
 - Node.js 24，npm >= 11.5.1（workflow 执行 `npm install -g npm@latest` 并检查版本）
 - `actions/setup-node` **不**设置 `registry-url`。该选项会写入 `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`；占位 token 会让 npm 跳过 OIDC，`npm publish` 返回 `404 Not Found` / `you do not have permission`
-- 升版 commit 与 `vX.Y.Z` tag 只在 `npm publish` 成功、且 registry 上能查到该版本之后才推送。发布失败不会推动 `main`，也不会留下指向未发布版本的 tag
+- 升版 commit 与 `vX.Y.Z` tag 在 `npm publish` 成功后立刻推送，不再轮询 `npm view`。发布步骤失败时推送不会执行，所以不会推动 `main`，也不会留下指向未发布版本的 tag
 
 ### 触发方式
 
